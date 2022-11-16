@@ -1,0 +1,74 @@
+version: '3'
+
+services:
+  reverse-proxy:
+    # The official v2 Traefik docker image
+    image: traefik:v2.9
+    # Enables the web UI and tells Traefik to listen to docker
+    command: --api.insecure=true --providers.docker --providers.docker.exposedByDefault=false #--log.filePath=/dockerdata/logs/traefik.log --log.level=DEBUG --accesslog=true --accesslog.filepath=/dockerdata/logs/traefik-access.log #--configFile=/etc/traefik/traefik.yml
+    
+    ports:
+      # The HTTP port
+      - "80:80"
+      # The Web UI (enabled by --api.insecure=true)
+      - "8080:8080"
+    volumes:
+      # So that Traefik can listen to the Docker events
+      - /var/run/docker.sock:/var/run/docker.sock
+# We will need this on part 4.5
+      - C:\docker\mount:/mnt/basic-auth
+#      - C:\docker\logs:/dockerdata/logs
+#      # Traefik configuration file
+#      - C:\docker\traefik\traefik.yml:/etc/traefik/traefik.yml
+
+   
+# 0 If you run this in Windows Computer you will need a environment variable
+    environment:
+     - COMPOSE_CONVERT_WINDOWS_PATHS=1
+###########################################################################
+  whoami:
+# A container that exposes an API to show its IP address
+    image: traefik/whoami
+    labels:
+   # - "traefik.http.routers.whoami.rule=Host(`whoami.docker.localhost`)"
+    - "traefik.http.routers.whoami.rule=Host(`Fernoss.tail935af.ts.net`)"
+    - "traefik.enable=true"
+
+#Part 2 
+  getting-started:
+    image: docker/getting-started
+    labels:
+    - "traefik.enable=true"
+    - "traefik.http.routers.started.rule=Host(`started.docker.localhost`)"
+    - "traefik.http.services.started.loadbalancer.server.port=80"
+
+##########################################################################  
+#Part 3
+  catapp:
+     # Dog GIF generator. Version 1 for cats and Version 2 for dogs 
+    image: mikesir87/cats:2.0
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.catapp.rule=Host(`catapp.docker.localhost`)"
+      - "traefik.http.routers.catapp.service=catapp"
+      - "traefik.http.services.catapp.loadbalancer.server.port=5000"
+#Part 4 Middleware
+#     - "traefik.http.routers.catapp.middlewares=test-compress"
+      - "traefik.http.middlewares.test-compress.compress=true"
+
+#################################
+#Part 4.5 Basic auth and problems with Windows and security
+      - "traefik.http.routers.catapp.middlewares=test-auth,test-compress"
+#     - "traefik.http.middlewares.test-auth.basicauth.users=student:$$apr1$$/nLwCo95$$jqyhCfetCO0r0o7GIIbkD/"
+      - "traefik.http.middlewares.test-auth.basicauth.usersfile=/mnt/basic-auth/users.txt"
+      # The Buffering middleware limits the size of requests that can be forwarded to services.
+      - "traefik.http.middlewares.limit.buffering.maxRequestBodyBytes=2000000"
+      # Here, an average of 100 requests per second is allowed.
+      # In addition, a burst of 50 requests is allowed.
+      - "traefik.http.middlewares.test-ratelimit.ratelimit.average=100"
+      - "traefik.http.middlewares.test-ratelimit.ratelimit.burst=50"
+
+
+
+#### Example of multimiddleware routing ###
+#- "traefik.http.routers.catapp.middlewares=test-auth,test-compress,test-ratelimit"
